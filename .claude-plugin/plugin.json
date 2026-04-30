@@ -1,0 +1,21 @@
+{
+  "name": "council",
+  "version": "1.0.0",
+  "description": "/council slash command — runs a multi-LLM council with strict separation of powers. Three independent cold-context judges (Gemini, Codex, Claude) critique an idea, draft, plan, decision, or output in parallel. Disagreement between judges is the signal.",
+  "author": {
+    "name": "Joseph Mallia"
+  },
+  "license": "MIT",
+  "repository": "https://github.com/jmallia-relay/llm-council-cc",
+  "keywords": [
+    "claude-code",
+    "claude-skill",
+    "llm-council",
+    "multi-llm",
+    "critique",
+    "review",
+    "decision-support",
+    "code-review",
+    "adversarial-review"
+  ]
+}
