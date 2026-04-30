@@ -75,7 +75,7 @@ In a Claude Code session:
 ### 4. Install this plugin
 
 ```
-/plugin marketplace add jmallia-relay/llm-council-cc
+/plugin marketplace add chefjoe-99/llm-council-cc
 /plugin install council@llm-council-cc
 ```
 

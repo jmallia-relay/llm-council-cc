@@ -6,19 +6,19 @@
   },
   "metadata": {
     "description": "Multi-LLM council slash command for Claude Code — Claude Opus drafter (Mode A), three independent cold-context judges (Gemini, Codex, Claude).",
-    "version": "1.1.0"
+    "version": "1.2.0"
   },
   "plugins": [
     {
       "name": "council",
       "source": "./",
       "description": "/council slash command — runs a multi-LLM council with strict separation of powers. Three independent cold-context judges (Gemini, Codex, Claude) critique an idea, draft, plan, decision, or output in parallel. Disagreement is the signal.",
-      "version": "1.1.0",
+      "version": "1.2.0",
       "author": {
         "name": "Joseph Mallia"
       },
-      "homepage": "https://github.com/jmallia-relay/llm-council-cc",
-      "repository": "https://github.com/jmallia-relay/llm-council-cc",
+      "homepage": "https://github.com/chefjoe-99/llm-council-cc",
+      "repository": "https://github.com/chefjoe-99/llm-council-cc",
       "license": "MIT",
       "keywords": [
         "claude-code",
