@@ -43,6 +43,8 @@ council doctor
 
 You should see `gemini` as `OK`.
 
+> Note: AI Studio access is gated by your Google Workspace admin at some orgs. If your work account hits a restriction message, ask IT for access.
+
 ### 2. Install the OpenAI Codex CLI
 
 Powers Judge B. Codex CLI ≠ the deprecated 2021 OpenAI Codex completion model — this is the OpenAI-published coding agent CLI from 2025+.
