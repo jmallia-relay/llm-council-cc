@@ -14,12 +14,12 @@ Designed for **critical analysis of ideas, drafts, plans, decisions, and outputs
 
 ## Architecture
 
-- **Drafter** (Mode A only): Gemini via `the-llm-council` CLI
+- **Drafter** (Mode A only): Claude Opus via the `council-drafter` sub-agent — fresh sub-agent, clean context, uses Claude Code's auth (no extra API keys)
 - **Judge A**: Gemini-critic — separate `council run critic` process, fresh context, sees only the artifact
 - **Judge B**: Codex — invoked via the `codex-plugin-cc` companion script (managed Codex sessions, not the brittle `council run --providers codex` path)
-- **Judge C**: Claude-judge — fresh Claude sub-agent (`council-judge`) with read-only tools and clean context
+- **Judge C**: Claude-judge — fresh Claude Opus sub-agent (`council-judge`) with read-only tools and clean context
 
-Claude is the **orchestrator**, not a judge. The Claude-judge sub-agent is Claude's peer voice with a clean window so it can grade without anchoring to the orchestrator's reasoning.
+The orchestrator (your active Claude Code session) does not draft and does not judge — it only dispatches sub-agents and synthesizes the verdict. **Three Claude entities are involved (orchestrator, drafter, judge), all isolated from each other.** The drafter and Claude-judge are both Opus, but they run as independent sub-agent dispatches with no shared session, no shared context, no shared reasoning channel. Cold context is the firewall.
 
 If any judge fails or returns empty, it's marked unavailable and the council proceeds with the rest. **2-judge tie (1-1) → no signal, recommend re-run** rather than forcing a verdict.
 
@@ -127,17 +127,24 @@ Two judges that disagree give you a tie with no signal. Three judges give you ma
 
 Why not four? The fourth would either need a fourth model family (more API keys) or duplicate one of the existing three (no marginal info). Three is the minimum that resolves ties; more would add cost without proportional signal.
 
-## Why Gemini judges Gemini
+## Why same-family on the Claude side (drafter + Claude-judge)
 
-Self-preference bias is real — same-family judging is correlated with the drafter. The mitigation is **cold context**: Gemini-critic is a separate process from the Gemini drafter, sees only the artifact, has no access to the drafter's reasoning. The bias isn't zero, but it's small enough that the cross-check is still useful, and adding a fourth provider to fix it would double the auth surface.
+Both the drafter and Claude-judge are Claude Opus. Same model family on both sides of the wall — that's a real bias risk worth being honest about.
 
-If you want stronger cross-model independence, the cleanest path is to swap Gemini-critic for an Anthropic API or OpenAI API direct call — but that requires another API key.
+**Mitigation: separate entities, cold context.** Drafter and judge are *independent sub-agent dispatches*. No shared session, no shared context, no shared tool surface beyond read-only file access. The judge sees the artifact and the original task — never the drafter's reasoning, never its prompts, never any partial output. The reasoning channel is severed.
+
+Bias isn't zero, but with cold context the dominant signal is the artifact's quality, not model affinity. **Gemini-judge and Codex provide the cross-family checks** — if the artifact has model-flavored failure modes, those two will catch it.
+
+The alternative — drop Claude-judge entirely whenever Claude drafts — would push the council from 3 judges to 2, which makes 1-1 ties common and forces "no signal" outputs more often. The 3-judge marketplace-of-ideas math wins out.
+
+If you want stronger cross-model independence on the drafter side, swap to `codex` (via the same plugin path) or set `ANTHROPIC_API_KEY` and use a different model family entirely. Both add latency or auth surface; neither is necessary for most use cases.
 
 ## Limitations
 
-- **Synthesis schemas are code-shaped.** The underlying `the-llm-council` CLI enforces per-subagent JSON schemas (`architect`, `critic`, etc.) tuned for code review. For non-code tasks, synthesis fails validation. The orchestrator works around this by reading `.drafts.gemini` directly. Expected behavior, not a bug.
-- **Drafter call is slow** (~60–120s for Gemini synthesis with retries).
-- **Codex via plugin is robust but adds latency** (~30s for cold session start). Worth it for reliability.
+- **Synthesis schemas are code-shaped.** The underlying `the-llm-council` CLI enforces per-subagent JSON schemas tuned for code review. Step 2's Gemini-judge call may fail synthesis validation for non-code tasks. The orchestrator works around this by reading `.drafts.gemini` directly. Expected behavior, not a bug. (Step 1's drafter no longer touches this CLI; it goes through the `council-drafter` sub-agent.)
+- **Drafter latency.** Claude Opus drafter takes ~30–90s depending on task complexity and reference material size.
+- **Codex via plugin** adds ~30s for cold session start. Worth it for reliability.
+- **Same-family on Claude side.** Drafter and Claude-judge are both Opus — see the section above on why this is acceptable in practice.
 - **Personal-tool ergonomics.** This was built for one user. Sharing across a team works (this repo) but each user runs their own auth + own API keys.
 
 ## License

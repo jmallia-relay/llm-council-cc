@@ -1,6 +1,6 @@
 {
   "name": "council",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "/council slash command — runs a multi-LLM council with strict separation of powers. Three independent cold-context judges (Gemini, Codex, Claude) critique an idea, draft, plan, decision, or output in parallel. Disagreement between judges is the signal.",
   "author": {
     "name": "Joseph Mallia"

@@ -1,6 +1,6 @@
 ---
 name: council
-description: Run a multi-LLM council with separation of powers — three independent cold-context judges (Gemini, Codex, Claude) critique an idea, draft, plan, decision, or output. Optionally with a Gemini drafter producing the artifact first.
+description: Run a multi-LLM council with separation of powers — three independent cold-context judges (Gemini, Codex, Claude) critique an idea, draft, plan, decision, or output. Optionally with a Claude Opus drafter producing the artifact first.
 arguments:
   - name: subagent
     description: "Subagent type: assessor, planner, reviewer, red-team, researcher, architect, implementer, test-designer, shipper, router"
@@ -33,14 +33,16 @@ Decide which mode applies before starting. Heuristic: if the task includes words
 ## Roster
 
 **Drafter:**
-- **Gemini** (via `GOOGLE_API_KEY`) — produces the artifact
+- **Claude Opus** via the `council-drafter` sub-agent — fresh sub-agent, isolated context, uses Claude Code's auth (no extra API key).
 
 **Judges (parallel, cold context, each blind to the others and to the drafter's reasoning):**
-- **Gemini-judge** — separate `council run critic` process. Same model family as drafter, but a fresh context that sees only the artifact. The drafter does not get to judge its own work.
-- **Codex** — invoked via the `codex-plugin-cc` companion script at `~/.claude/plugins/cache/openai-codex/codex/*/scripts/codex-companion.mjs`. This is a managed-session invocation — different code path than `council run --providers codex`, which historically returned empty responses.
-- **Claude-judge** — fresh Claude sub-agent via the `council-judge` agent (read-only, clean context).
+- **Gemini-judge** — separate `council run critic` process via the `the-llm-council` CLI. Different model family from drafter; fully independent.
+- **Codex** — invoked via the `codex-plugin-cc` companion script at `~/.claude/plugins/cache/openai-codex/codex/*/scripts/codex-companion.mjs`. Managed-session invocation — different code path than `council run --providers codex`, which historically returned empty responses. Different model family from drafter; fully independent.
+- **Claude-judge** — fresh Claude Opus sub-agent via the `council-judge` agent (read-only tools, clean context). Same model family as drafter, but a *separate sub-agent entity* — see below.
 
-Claude is NOT a council member. Claude is the **orchestrator**. The Claude-judge sub-agent is Claude's peer voice with a clean context window so it can grade without anchoring to the orchestrator's reasoning.
+**Same family, separate entities, no conflict of interest.** The drafter and Claude-judge are both Claude Opus, but they run as *independent sub-agent dispatches* with no shared session, no shared context, no shared tools beyond read-only file access. Cold context is the firewall. The judge sees the artifact and the original task — never the drafter's reasoning, prompts, or partial outputs. Bias from same-family alignment is real but small once the reasoning channel is severed. Gemini-judge and Codex provide the other-family cross-checks.
+
+The current Claude Code session — the **orchestrator** — does not draft and does not judge. It only dispatches sub-agents and synthesizes the verdict. Three Claude entities are involved (orchestrator, drafter, judge), all isolated from each other.
 
 ## Subagents
 
@@ -60,7 +62,7 @@ Claude is NOT a council member. Claude is the **orchestrator**. The Claude-judge
 **Meta:**
 - `router` — pick the right subagent for an ambiguous task
 
-The underlying council CLI's `critic`/`architect`/etc. JSON schemas are code-shaped. For non-code use, this causes synthesis to fail validation — that's expected; Step 1 instructs the orchestrator to read `.drafts.gemini` directly, where Gemini's actual output lives unconstrained by schema.
+The underlying `the-llm-council` CLI's `critic` schema is code-shaped. For non-code use, Step 2's Gemini-judge call may fail synthesis validation — that's expected; the orchestrator reads `.drafts.gemini` from the CLI output directly, where Gemini's actual judge verdict lives unconstrained by schema. (Step 1's drafter no longer touches this CLI; it goes through the `council-drafter` sub-agent instead.)
 
 ## Execution
 
@@ -72,15 +74,18 @@ You (the orchestrator) must run these steps in order. Do not skip.
 
 **If Mode A** (no artifact yet, council needs to produce one):
 
-```bash
-council run $subagent "$task" --providers gemini --json
-```
+Dispatch the `council-drafter` sub-agent via the Task tool (`subagent_type: "council-drafter"`). The sub-agent runs as a fresh Claude Opus instance with a clean context, isolated from your (orchestrator's) reasoning.
 
-Capture the full JSON output. **Extract the artifact from `.drafts.gemini`** — not `.output` or `.synthesis`. The council CLI's synthesis pass enforces a per-subagent schema (`architect`, `critic`, etc.) that often does not match what Gemini actually produces, causing `success: false` with `validation_errors`. The DRAFT under `.drafts.gemini` is always present and contains the substantive content. The synthesis failure is expected and should be ignored.
+Pass the sub-agent:
+1. The **role** (the user's `$subagent` argument: `assessor`, `planner`, `reviewer`, `red-team`, `researcher`, `architect`, `implementer`, `test-designer`, or `shipper`)
+2. The **task** verbatim
+3. **Reference materials** — if the user passed `--files`, read each file with the Read tool and inline the FULL contents into the dispatch prompt. Do not summarize; the drafter must see the same source material the judges will see in Step 2.
 
-If the user passed context files to the drafter (via `--files`), **remember those file paths** — Step 2 judges must see the same files to verify factual claims.
+The sub-agent returns the artifact as plain text. Capture it for Step 2.
 
-**Discard** Gemini's self-critique from this call — we want cold judges in Step 2, not the drafter's own grade.
+If the user passed context files, **also remember those file paths** — Step 2 judges must see the same files to verify factual claims.
+
+**Drafter failure handling:** If the `council-drafter` sub-agent returns an error, an empty response, or refuses the task, abort and report the failure to the user — drafting is the precondition for Mode A; we cannot proceed to Step 2 without an artifact. Recommend the user retry or switch to Mode B by providing their own artifact.
 
 ### Step 2 — Three judges in parallel
 
@@ -98,7 +103,7 @@ Original task: $task
 of each file here, verbatim. Do not summarize. Judges must verify claims against
 the same source material the drafter saw.]
 
-Artifact (paste verbatim from Step 1's `.drafts.gemini` — full text, no abbreviation):
+Artifact (paste verbatim from Step 1's `council-drafter` sub-agent output — full text, no abbreviation):
 <paste artifact here>
 
 Return JSON only, with these keys:
